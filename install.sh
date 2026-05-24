@@ -20,9 +20,11 @@ set_font_dir() {
   case "$PLATFORM" in
     linux)
       FONT_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/fonts/agentos"
+      FONTCONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/fontconfig"
       ;;
     macos)
       FONT_DIR="$HOME/Library/Fonts/agentos"
+      FONTCONFIG_DIR="$HOME/Library/FontConfig"
       ;;
     windows)
       FONT_DIR="$LOCALAPPDATA/Microsoft/Windows/Fonts/agentos"
@@ -49,6 +51,13 @@ download_fonts() {
     mkdir -p "$FONT_DIR"
     find "$TEMP_DIR/extracted" -name '*.ttf' -exec cp -v {} "$FONT_DIR/" \;
 
+    if [ -n "$FONTCONFIG_DIR" ]; then
+      mkdir -p "$FONTCONFIG_DIR/conf.d"
+      EXTRACTED_DIR="$TEMP_DIR/extracted/$(ls "$TEMP_DIR/extracted")"
+      cp -v "$EXTRACTED_DIR/fontconfig/fonts.conf" "$FONTCONFIG_DIR/fonts.conf" 2>/dev/null || true
+      cp -v "$EXTRACTED_DIR/fontconfig/conf.d/70-agentosui.conf" "$FONTCONFIG_DIR/conf.d/70-agentosui.conf" 2>/dev/null || true
+    fi
+
     rm -rf "$TEMP_DIR"
     return
   fi
@@ -59,6 +68,18 @@ download_fonts() {
     echo "Downloading $font..."
     curl -sSL "$RAW_URL/fonts/$font" -o "$FONT_DIR/$font"
   done
+}
+
+download_fontconfig() {
+  if [ -z "$FONTCONFIG_DIR" ]; then
+    return
+  fi
+
+  mkdir -p "$FONTCONFIG_DIR/conf.d"
+
+  echo "Downloading fontconfig files..."
+  curl -sSL "$RAW_URL/fontconfig/fonts.conf" -o "$FONTCONFIG_DIR/fonts.conf"
+  curl -sSL "$RAW_URL/fontconfig/conf.d/70-agentosui.conf" -o "$FONTCONFIG_DIR/conf.d/70-agentosui.conf"
 }
 
 install_fonts() {
@@ -73,6 +94,7 @@ install_fonts() {
   echo ""
 
   download_fonts
+  download_fontconfig
 
   echo ""
   echo "Updating font cache..."
@@ -100,11 +122,17 @@ uninstall_fonts() {
       echo "Updating font cache..."
       fc-cache -fv
     fi
-
-    echo "Fonts uninstalled."
   else
     echo "No agentos fonts found at $FONT_DIR"
   fi
+
+  if [ -n "$FONTCONFIG_DIR" ]; then
+    echo "Removing fontconfig files from: $FONTCONFIG_DIR"
+    rm -f "$FONTCONFIG_DIR/fonts.conf" 2>/dev/null || true
+    rm -f "$FONTCONFIG_DIR/conf.d/70-agentosui.conf" 2>/dev/null || true
+  fi
+
+  echo "Fonts uninstalled."
 }
 
 usage() {
